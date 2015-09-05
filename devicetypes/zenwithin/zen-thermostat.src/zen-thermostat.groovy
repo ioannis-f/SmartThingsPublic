@@ -29,22 +29,39 @@ metadata {
   // simulator metadata
   simulator { }
 
-  tiles {
-        valueTile("frontTile", "device.temperature", width: 1, height: 1) {
+  tiles (scale: 2) {
+  		multiAttributeTile(name:"status", type: "lighting", width: 6, height: 4, canChangeIcon: true){
+        	tileAttribute ("device.temperature", key: "PRIMARY_CONTROL") {
+                    attributeState ("temperature", label:'${currentValue}°', backgroundColor:"#0A1E2C")
+        	}
+            
+            tileAttribute ("statusText", key: "SECONDARY_CONTROL") {
+           			attributeState "statusText", label:'${currentValue}'
+        		
+            }
+            /*
+            tileAttribute ("thermostatSetpoint", key: "VALUE_CONTROL") {
+            		attributeState  "thermostatSetpoint", action:"setpointUp"
+                    //attributeState  "setpointDown", action:"setpointDown", icon:"st.thermostat.thermostat-down"
+            }  
+            */
+        }
+        
+        valueTile("frontTile", "device.temperature", width: 2, height: 2) {
             state("temperature", label:'${currentValue}°', backgroundColor:"#e8e3d8")
         }
     
-        valueTile("temperature", "device.temperature", width: 1, height: 1) {
+        valueTile("temperature", "device.temperature", width: 2, height: 2) {
             state("temperature", label:'${currentValue}°', backgroundColor:"#0A1E2C")
         }
         
-        standardTile("fanMode", "device.thermostatFanMode", decoration: "flat") {
+        standardTile("fanMode", "device.thermostatFanMode", decoration: "flat", width: 2, height: 2) {
             state "fanAuto", action:"thermostat.setThermostatFanMode", backgroundColor:"#e8e3d8", icon:"st.thermostat.fan-auto"
             state "fanOn", action:"thermostat.setThermostatFanMode", backgroundColor:"#e8e3d8", icon:"st.thermostat.fan-on"
         }
         
         
-        standardTile("mode", "device.thermostatMode", decoration: "flat") {
+        standardTile("mode", "device.thermostatMode", decoration: "flat", width: 2, height: 2) {
             state "off", action:"setThermostatMode", backgroundColor:"#e8e3d8", icon:"st.thermostat.heating-cooling-off", nextState:"heating"
             state "heat", action:"setThermostatMode", backgroundColor:"#ff6e7e", icon:"st.thermostat.heat", nextState:"cooling"
             state "cool", action:"setThermostatMode", backgroundColor:"#90d0e8", icon:"st.thermostat.cool", nextState:"..."
@@ -59,35 +76,38 @@ metadata {
             state "heat", label:'${currentValue}°', unit: "C", backgroundColor:"#e8e3d8"
             state "cool", label:'${currentValue}°', unit: "C", backgroundColor:"#e8e3d8"
         }
-        valueTile("heatingSetpoint", "device.heatingSetpoint", inactiveLabel: false) {
+        valueTile("heatingSetpoint", "device.heatingSetpoint", inactiveLabel: false, width: 2, height: 2) {
 			state "heat", label:'${currentValue}° heat', unit:"F", backgroundColor:"#ffffff"
 		}
-        valueTile("coolingSetpoint", "device.coolingSetpoint", inactiveLabel: false) {
+        valueTile("coolingSetpoint", "device.coolingSetpoint", inactiveLabel: false, width: 2, height: 2) {
 			state "cool", label:'${currentValue}° cool', unit:"F", backgroundColor:"#ffffff"
 		}
-        standardTile("thermostatOperatingState", "device.thermostatOperatingState", inactiveLabel: false) {
+        
+         valueTile("statusText", "statusText", inactiveLabel: false, width: 2, height: 2) {
+			state "statusText", label:'${currentValue}', backgroundColor:"#ffffff"
+		}
+        standardTile("thermostatOperatingState", "device.thermostatOperatingState", inactiveLabel: false, width: 2, height: 2) {
             state "heating", backgroundColor:"#ff6e7e"
             state "cooling", backgroundColor:"#90d0e8"
             state "fan only", backgroundColor:"#e8e3d8"
 		}
-        standardTile("setpointUp", "device.thermostatSetpoint", decoration: "flat") {
+        standardTile("setpointUp", "device.thermostatSetpoint", decoration: "flat", width: 2, height: 2) {
             state "setpointUp", action:"setpointUp", icon:"st.thermostat.thermostat-up"
         }
         
-        standardTile("setpointDown", "device.thermostatSetpoint", decoration: "flat") {
+        standardTile("setpointDown", "device.thermostatSetpoint", decoration: "flat", width: 2, height: 2) {
             state "setpointDown", action:"setpointDown", icon:"st.thermostat.thermostat-down"
         }
 
-        standardTile("refresh", "device.temperature", decoration: "flat") {
+        standardTile("refresh", "device.temperature", decoration: "flat", width: 2, height: 2) {
             state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
         }
         
-        standardTile("configure", "device.configure", decoration: "flat") {
+        standardTile("configure", "device.configure", decoration: "flat", width: 2, height: 2) {
             state "configure", label:'', action:"configuration.configure", icon:"st.secondary.configure"
         }
-
-      main "frontTile"
-      details(["temperature", "fanMode", "mode", "thermostatSetpoint", "setpointUp", "setpointDown","refresh", "configure"])
+      main "status"
+      details(["status", "temperature", "fanMode", "mode", "thermostatSetpoint", "setpointUp", "setpointDown","refresh", "configure"])
   }
 }
 
@@ -97,6 +117,10 @@ def parse(String description) {
     log.debug "Parse description $description"
     def map = [:]
     def activeSetpoint = "--"
+    def statusTextmsg = ""
+    statusTextmsg = "Currently ${device.currentState('thermostatOperatingState').value} and set at ${device.currentState('thermostatSetpoint').value} and the fan is in ${device.currentState('thermostatFanMode').value} mode."
+    sendEvent("name":"statusText", "value":statusTextmsg)
+    
     
     if (description?.startsWith("read attr -")) 
     {
@@ -477,16 +501,16 @@ def refresh()
 
         //Set long poll interval to 2 qs
         "raw 0x0020 {11 00 02 02 00 00 00}", 
-        "send 0x${device.deviceNetworkId} 1 1", "delay 500",
+        "send 0x${device.deviceNetworkId} 1 1", "delay 400",
 
         //This is sent in this specific order to ensure that the temperature values are received after the unit/mode
-        "st rattr 0x${device.deviceNetworkId} 1 0x201 0x1C", "delay 800",
-        "st rattr 0x${device.deviceNetworkId} 1 0x201 0", "delay 800",
+        "st rattr 0x${device.deviceNetworkId} 1 0x201 0x1C", "delay 400",
+        "st rattr 0x${device.deviceNetworkId} 1 0x201 0", "delay 400",
         
-        "st rattr 0x${device.deviceNetworkId} 1 0x201 0x11", "delay 800",
-        "st rattr 0x${device.deviceNetworkId} 1 0x201 0x12", "delay 800",
-        "st rattr 0x${device.deviceNetworkId} 1 0x201 0x29", "delay 800",
-        "st rattr 0x${device.deviceNetworkId} 1 0x202 0", "delay 800",
+        "st rattr 0x${device.deviceNetworkId} 1 0x201 0x11", "delay 400",
+        "st rattr 0x${device.deviceNetworkId} 1 0x201 0x12", "delay 400",
+        "st rattr 0x${device.deviceNetworkId} 1 0x201 0x29", "delay 400",
+        "st rattr 0x${device.deviceNetworkId} 1 0x202 0", "delay 400",
 
         //Set long poll interval to 28 qs (7 seconds)
         "raw 0x0020 {11 00 02 1C 00 00 00}", 
@@ -505,31 +529,31 @@ def configure()
     [
           //Set long poll interval to 2 qs
           "raw 0x0020 {11 00 02 02 00 00 00}", 
-          "send 0x${device.deviceNetworkId} 1 1", "delay 500",
+          "send 0x${device.deviceNetworkId} 1 1", "delay 400",
           
       	  //Thermostat - Cluster 201
-          "zdo bind 0x${device.deviceNetworkId} 1 1 0x201 {${device.zigbeeId}} {}", "delay 500",
+          "zdo bind 0x${device.deviceNetworkId} 1 1 0x201 {${device.zigbeeId}} {}", "delay 400",
           
           "zcl global send-me-a-report 0x201 0 0x29 5 300 {3200}", 
-          "send 0x${device.deviceNetworkId} 1 1", "delay 500",
+          "send 0x${device.deviceNetworkId} 1 1", "delay 400",
           
           "zcl global send-me-a-report 0x201 0x0011 0x29 5 300 {3200}", 
-          "send 0x${device.deviceNetworkId} 1 1", "delay 500",
+          "send 0x${device.deviceNetworkId} 1 1", "delay 400",
           
           "zcl global send-me-a-report 0x201 0x0012 0x29 5 300 {3200}", 
-          "send 0x${device.deviceNetworkId} 1 1", "delay 500",
+          "send 0x${device.deviceNetworkId} 1 1", "delay 400",
           
           "zcl global send-me-a-report 0x201 0x001C 0x30 5 300 {}", 
-          "send 0x${device.deviceNetworkId} 1 1", "delay 500",
+          "send 0x${device.deviceNetworkId} 1 1", "delay 400",
           
           "zcl global send-me-a-report 0x201 0x0029 0x19 5 300 {}", 
-          "send 0x${device.deviceNetworkId} 1 1", "delay 500",
+          "send 0x${device.deviceNetworkId} 1 1", "delay 400",
     
           //Fan Control - Cluster 202
-          "zdo bind 0x${device.deviceNetworkId} 1 1 0x202 {${device.zigbeeId}} {}", "delay 500",
+          "zdo bind 0x${device.deviceNetworkId} 1 1 0x202 {${device.zigbeeId}} {}", "delay 400",
           
           "zcl global send-me-a-report 0x202 0 0x30 5 300 {}", 
-          "send 0x${device.deviceNetworkId} 1 1", "delay 1500",
+          "send 0x${device.deviceNetworkId} 1 1", "delay 1000",
     
           ] + refresh()
 }
